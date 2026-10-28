@@ -1,0 +1,35 @@
+services:
+  users:
+    build: .
+    command: uvicorn services.users:app --host 0.0.0.0 --port 8001
+    ports: ["127.0.0.1:8001:8001"]
+  orders:
+    build: .
+    command: uvicorn services.orders:app --host 0.0.0.0 --port 8002
+    ports: ["127.0.0.1:8002:8002"]
+  gateway:
+    build: .
+    ports: ["8000:8000"]
+    env_file: .env
+    environment:
+      USER_SERVICE_URL: http://users:8001
+      ORDER_SERVICE_URL: http://orders:8002
+    depends_on:
+      users: {condition: service_started}
+      orders: {condition: service_started}
+      minio-init: {condition: service_completed_successfully}
+  minio:
+    build:
+      context: .
+      dockerfile: Dockerfile.minio
+    command: server /data --console-address :9001
+    env_file: .env
+    ports: ["127.0.0.1:9000:9000", "127.0.0.1:9001:9001"]
+    volumes: ["minio-data:/data"]
+  minio-init:
+    build: .
+    env_file: .env
+    depends_on: [minio]
+    command: python -m services.init_storage
+volumes:
+  minio-data:
